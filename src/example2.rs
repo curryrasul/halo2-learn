@@ -66,7 +66,7 @@ impl<F: FieldExt> FiboChip<F> {
             || "whole column",
             |mut region| {
                 self.config.selector.enable(&mut region, 0)?;
-                // self.config.selector.enable(&mut region, 1)?;
+                self.config.selector.enable(&mut region, 1)?;
 
                 let mut a_cell = region.assign_advice(
                     || "a",
