@@ -41,6 +41,10 @@ impl<F: FieldExt> FiboChip<F> {
         meta.enable_equality(instance);
 
         meta.create_gate("add", |meta| {
+            //
+            // col_a | col_b | col_c | selector
+            //   a       b       c        s
+            //
             let a = meta.query_advice(col_a, Rotation::cur());
             let b = meta.query_advice(col_b, Rotation::cur());
             let c = meta.query_advice(col_c, Rotation::cur());
