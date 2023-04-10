@@ -1,7 +1,8 @@
 #![allow(clippy::type_complexity)]
 
 use halo2_proofs::{
-    arithmetic::FieldExt, circuit::*, dev::MockProver, pasta::Fp, plonk::*, poly::Rotation,
+    arithmetic::Field, circuit::*, dev::MockProver, halo2curves::bn256::Fr as Fp, plonk::*,
+    poly::Rotation,
 };
 use std::marker::PhantomData;
 
@@ -15,12 +16,12 @@ struct FiboConfig {
     instance: Column<Instance>,
 }
 
-struct FiboChip<F: FieldExt> {
+struct FiboChip<F: Field> {
     config: FiboConfig,
     _marker: PhantomData<F>,
 }
 
-impl<F: FieldExt> FiboChip<F> {
+impl<F: Field> FiboChip<F> {
     fn construct(config: FiboConfig) -> Self {
         Self {
             config,
@@ -66,36 +67,21 @@ impl<F: FieldExt> FiboChip<F> {
     fn assign_first_row(
         &self,
         mut layouter: impl Layouter<F>,
-        a: Option<F>,
-        b: Option<F>,
+        a: Value<F>,
+        b: Value<F>,
     ) -> Result<(AssignedCell<F, F>, AssignedCell<F, F>, AssignedCell<F, F>), Error> {
         let (a, b, c) = layouter.assign_region(
             || "first row",
             |mut region| {
                 self.config.selector.enable(&mut region, 0)?;
 
-                let a_cell = region.assign_advice(
-                    || "f(0)",
-                    self.config.col_a,
-                    0,
-                    || a.ok_or(Error::Synthesis),
-                )?;
+                let a_cell = region.assign_advice(|| "f(0)", self.config.col_a, 0, || a)?;
 
-                let b_cell = region.assign_advice(
-                    || "f(1)",
-                    self.config.col_b,
-                    0,
-                    || b.ok_or(Error::Synthesis),
-                )?;
+                let b_cell = region.assign_advice(|| "f(1)", self.config.col_b, 0, || b)?;
 
                 let c_val = a.and_then(|a| b.map(|b| a + b));
 
-                let c_cell = region.assign_advice(
-                    || "f(2)",
-                    self.config.col_c,
-                    0,
-                    || c_val.ok_or(Error::Synthesis),
-                )?;
+                let c_cell = region.assign_advice(|| "f(2)", self.config.col_c, 0, || c_val)?;
 
                 Ok((a_cell, b_cell, c_cell))
             },
@@ -119,16 +105,9 @@ impl<F: FieldExt> FiboChip<F> {
                 prev_b.copy_advice(|| "a", &mut region, self.config.col_a, 0)?;
                 prev_c.copy_advice(|| "b", &mut region, self.config.col_b, 0)?;
 
-                // region.assign_advice_from_instance(annotation, instance, row, advice, offset)
-
                 let c_val = prev_b.value().and_then(|b| prev_c.value().map(|c| *b + *c));
 
-                region.assign_advice(
-                    || "c",
-                    self.config.col_c,
-                    0,
-                    || c_val.ok_or(Error::Synthesis),
-                )
+                region.assign_advice(|| "c", self.config.col_c, 0, || c_val)
             },
         )?;
 
@@ -146,12 +125,12 @@ impl<F: FieldExt> FiboChip<F> {
 }
 
 #[derive(Default)]
-struct MyCircuit<F: FieldExt> {
-    a: Option<F>,
-    b: Option<F>,
+struct MyCircuit<F: Field> {
+    a: Value<F>,
+    b: Value<F>,
 }
 
-impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
+impl<F: Field> Circuit<F> for MyCircuit<F> {
     type Config = FiboConfig;
     type FloorPlanner = SimpleFloorPlanner;
 
@@ -195,13 +174,10 @@ impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
 fn main() {
     let k = 4;
 
-    let a = Fp::from(1);
-    let b = Fp::from(1);
+    let a = Value::known(Fp::from(1));
+    let b = Value::known(Fp::from(1));
 
-    let circuit = MyCircuit {
-        a: Some(a),
-        b: Some(b),
-    };
+    let circuit = MyCircuit { a, b };
 
     let pub_input = vec![Fp::from(55)];
 
